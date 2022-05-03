@@ -22,8 +22,9 @@
 
 * [Conclusion](#conclusion)
     * [Lessons learned](#lessons)
-        * [Basic ML: Goals, metrics, domain expertise](#lessons_basic)
-        * [Big data ML: Patience, cloud computing, pipeline](lessons_big)
+        * [Big data DS: Domain expertise, goals, metrics](#lessons_ds)
+        * [Big data ML: Patience, cloud computing, pipeline](#lessons_ml)
+
     * [Things I would do differently](#diff)
 
 # Introduction <a name = 'intro'>
@@ -132,22 +133,26 @@ I also calculated new features, such as the length of a user's flair, the length
 
 * F-2 score: by setting the <code>beta</code> parameter of SparkML's <code>MulticlassClassificationEvaluator</code> equal to 2, I could use the F2-score as the evaluator's metric in the cross validation process. 
 
+* something about <code>VectorAssembler</code>
 
-## Part 5: Big data & SparkML <a name = 'big_ml'>
 
-## Part 6: Model evaluation <a name = 'eval'>
+### Part 5: Big data & SparkML <a name = 'big_ml'>
+
+*
+
+### Part 6: Model evaluation <a name = 'eval'>
 
 # Conclusion <a name = 'conclusion'>
 
 ## Lessons learned <a name = 'lessons'>
 
-### Basic ML: Goals, metrics, domain expertise <a name = 'lessons_basic'>
+### Big data DS: Domain expertise, goals, metrics <a name = 'lessons_ds'>
 
 * Knowing that I needed to an imbalanced classifier was child's play
 
 * Actually building it was hard
 
-### Big data ML: Patience, cloud computing, pipeline <a name ='lessons_big'>
+### Big data ML: Patience, cloud computing, pipeline <a name ='lessons_ml'>
 * Cloud computing is time consuming - **plan accordingly**
 
 * Very difficult to do adhoc adjustments and calculations with a big dataset even with cloud computing - **plan accordingly**
