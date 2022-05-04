@@ -1,14 +1,13 @@
-# Name: Chau Nguyen
+### Name: Chau Nguyen
 
-# Table of Contents
+### Table of Contents
 
 * [Introduction](#intro)
-    * [Overview of dataset](#overview)
     * [Classifier for <code>is_submitter</code>](#classifier)
         * [Imbalanced classes](#imb)
         * [Evaluation metrics](#metrics)
 
-* [Code](#code)
+* [Codes](#codes)
 
 * [Methods](#methods)
     * [Data Pre-Processing](#pp)
@@ -16,11 +15,14 @@
         * [Part 2: Data cleaning](#clean)
         * [Part 3: Feature engineering](#fe)
     * [Modeling](#modeling)
-        * [Part 4: Building toy model on small data partition](#toy_model)
-        * [Part 5: Big data & SparkML](#big_ml)
-        * [Part 6: Model evaluation](#eval)
 
-* [Conclusion](#conclusion)
+
+* [Results](#result)
+    * [Confusion Matrix](#cm)
+    * [Model evaluation](#eval)
+    * [Feature Importance](#fe)
+
+* [Conclusions](#conclusions)
     * [Lessons learned](#lessons)
         * [Big data DS: Domain expertise, goals, metrics](#lessons_ds)
         * [Big data ML: Patience, cloud computing, pipeline](#lessons_ml)
@@ -29,9 +31,8 @@
 
 # Introduction <a name = 'intro'>
 
-## Overview of dataset <a name = 'overview'>
+In this project, I train a classifier to determine whether comments in a readdit thread were created by the original poster of the thread or not. I am using data from the subreddit <code>/r/pcmasterrace</code> to train and test my classifier. The full dataset itself contains 8,928,401 rows, thus I needed to use cloud computing to explore and clean the dataset, then train and test my model. 
 
-Size, count, min date, max date, etc
 
 ## Classifier for <code>is_submitter</code> <a name='classifier'>
 
@@ -45,12 +46,26 @@ Size, count, min date, max date, etc
 
 ### Imbalanced classes <a name = 'imb'>
 
-In the small data partition for June 2021, 34,585 out of 226,085 training samples (around 15%) have <code> abel is_submitter == 1</code>. Out of 7,141,851 training records of the full data set, 1,014,861 are <code>is_submitter == 1</code>, or about 14%.  
+In the small data partition for June 2021, 34,585 out of 226,085 training samples (around 15%) have label <code>is_submitter == 1</code>. Out of 7,141,851 training records of the full data set, 1,014,861 are <code>is_submitter ==1</code>, or about 14%.  
+
+###  Small dataset (June 2021 partitiion)
+
+<code>is_submitter</codes>      | Count |
+| ----------- | ----------- |
+| 0      | 191,500       |
+| 1   | 34,585        |
+
+### Big data set - Training split
+
+<code>is_submitter</codes>      | Count |
+| ----------- | ----------- |
+| 0      | 6,126,990       |
+| 1   | 1,014,861       |
+
 
 I did not look at the test samples in either the small nor big samples to prevent personal biases and data leakage. However, both these ratios tell me that I have an **imbalanced classifier** to model.
 
 ### Evaluation metrics <a name = 'metrics'>
-
 
 Only 14-15% of comments in my reddit dataset were written by the original poster of the thread, I needed an evaluation metric that is NOT accuracy of the overall classifier. This is because a model can classifier that ALL of all the comments in my data were not written by the original poster (<code>is_submitter==0</code>) and be accurate 85% of the time. 
 
@@ -66,9 +81,22 @@ Which of these 2 prioritize depends on the ideal outcome - or what I want the cl
 
 *  However, I don't want to completely abandon precision either, because an auto-ban-classifier with low precision will cause legitimate, single-account users undue annoyance of wrongly getting banned, which is not good.
 
-* This is why he F1-score, or the harmonic mean of precision & recall is another popular evaluation metric for imbalanced classes.
+* This is why the F1-score, or the harmonic mean of precision & recall is another popular evaluation metric for imbalanced classes.
 
 What if I want to take both precision and recall into consideration, but prioritize recall a little more than precision so that I can catch more multi-account commenters while minimizing false bans on single-account users? I can calculate the F-2 score by setting the <code>beta</code> parameter of SparkML's <code>MulticlassClassificationEvaluator</code> equal to 2, which tells the classifier to prioritize recall over precision but not ignore it altogether.
+
+## Codes <a name = 'codes'>
+
+There are 4 main notebooks I used for the project:
+
+* <code>small_EDA</code> to create simple visualizations and print out some basic statistics about the June 2021 partrition of my data.
+
+* <code>small_GBT</code> the end-to-end pipeline to clean and train a Gradient Boosted Tree model on the June 2021 data to confirm that my code works.
+
+* <code>big_GBT</code> almost identical to <code>small_GBT</code>, except that I read in all 8 millions+ rows from the full reddit dataset to train and save a model.
+
+* <code>big_eval</code> I load the fully trained model and examine evaluation metrics
+
 
 ## Methods: <a name = 'methods'>
 
@@ -84,13 +112,14 @@ What if I want to take both precision and recall into consideration, but priorit
 
     * Different subreddits have their own sets of rules enforced by their own moderators. For example, in some subreddits, only subscribers are allowed to comment, upvote or downvote certain posts. In other subreddits, new accounts or accounts with fewer than a pre-definded threshold of karma score cannot create post of comments. Thus, I cannot apply my previous "domain knowledge" as a user of other subreddits to /r/pcmasterrace without learning more about it. 
 
-    * Thus, aside from looking at just the columns from the dataset in Spark, I browsed the subreddit to get a sense for contents posted on it and the type of interaction between users.
+    * Thus, aside from looking at columns from the dataset in Spark, I browsed the subreddit to get a sense for contents posted on it and the type of interaction between users.
 
 ##### Step 3: Exploratory data analysis: SparkSQL + pySpark + pandas + seaborn
     
 Because I was not familiar with the subreddit itself, I did not want to come up with a hypothesis to test or a what kind of supervised model to build until I saw what the data looks like. I spent a lot of time working exploring the June 2021 parquet of the data, which has about 300k rows.
 
 SparkSQL was extremely helpful for summary statistics, count and aggregates of the June dataset. For example, if I wanted to see how many posts (<code>id</code>) a unique user (<code>author</code>) have made in a thread (<code>link_id</code>), I would run the follow command:
+
 ```
 spark.sql(
     '''
@@ -117,49 +146,97 @@ Although SQL aggegate tables are really helpful, but as a visual learner, I also
 
 ### Part 2: Data Cleaning  <a name='clean'>
 
-As explained above I did some data cleaning in parallel as I was exploring the data. I  decided early on in the process that there were complicated variables that I had to sacrifice, such as those related to <code>awards</code> and <code>author_flair</code>. I also dropped redundant columns such as <code>subreddit_id</code> (because my dataset only consisted of comments from /r/pcmasterrace)
+ I did some data cleaning as I was exploring the data. I  decided early on in the process that there were complicated variables that I had to sacrifice, such as those related to <code>awards</code> and <code>author_flair</code>. I also dropped redundant columns such as <code>subreddit_id</code> -  my dataset only consisted of comments from /r/pcmasterrace)
 
-I did some standard cleaning steps such as converting unix time in seconds into UTC timestamps, date, and time. 
+I did some standard cleaning steps such as converting unix time in seconds into UTC timestamps, date, and time. The code is codmmented. 
 
 ### Part 3: Feature Engineering <a name ='fe'>
 
-I also calculated new features, such as the length of a user's flair, the length of a comment, account age by the time a comment was posted, the total number of posts a unique user made in a certain thread.
+I also calculated new features, such as the length of a user's flair, the length of a comment, account age by the time a comment was posted, the total number of posts a unique user made in a certain thread, the day of week (on UTC) a comment was made.
+
+Below are some visualizations of the newly created features in the June 2021 partition of the data. I was not able to re-create these visualizations using the full dataset. 
+
+<img src="./viz_small/comment_flair_length.png" style="height: 300px"/>
+
+<img src="./viz_small/score_comment_length.png" style="height: 300px"/>
+
+<img src="./viz_small/user_in_thread.png" style="height: 300px"/>
 
 ## Modeling
 
-### Part 4: Building toy model on small data partition <a name = 'toy_model' >
+* After getting visual confirmation that there is a difference between the behavior of a thread's submitter, I began building my classifier model.
 
-* Cross-validation: I set both small_ML and big_ML to do 5 folds of cross validation 
+* Because the original dataset has more than 8 million rows, I first built my model on the small June 2021 partition, and the F-2 score is my North Star metrics.
 
-* F-2 score: by setting the <code>beta</code> parameter of SparkML's <code>MulticlassClassificationEvaluator</code> equal to 2, I could use the F2-score as the evaluator's metric in the cross validation process. 
+* The F-2 score: by setting the <code>beta</code> parameter of SparkML's <code>MulticlassClassificationEvaluator</code> equal to 2, I could use the F2-score as the evaluator's metric in the cross validation process. 
 
-* something about <code>VectorAssembler</code>
+* I picked SparkML's <code>Gradient Boosted Tree</code> as my classifier model. Initially, I also tried a <code>Random Forest Classifier</code>, but I found that I could not get good results for the recall score, so I decided to stick with GBT in the end. My research shows that GBT has a tendency to overfit, and to combat that I added a layer of cross-validation in the model training pipeline
 
 
-### Part 5: Big data & SparkML <a name = 'big_ml'>
+* Cross-validation: I set both small_ML and big_ML to do 5 folds of cross validation, which means that 20% of the training data will be used as a validation set in for each of the 5 cross-validation runs. In the interest of time, I only tuned 1 paramater, <code>stepSize</code>, which is the learning rate of the classifier. 
 
-*
+* After I confirmed that my code could run successfully on the June 2021 partition, I trained a similar model on the large dataset. I discuss the results below.
 
-### Part 6: Model evaluation <a name = 'eval'>
+## Results <a name = 'res'>
 
-# Conclusion <a name = 'conclusion'>
+### Confusion matrices <a name = 'cm'>
+
+I created the confusion matrices for the classifier. The confusion matrix once again shows that my model did really well in finding True Positives of the <code>is_submitter</code> class, despite the obvious imbalance between my 2 classes. In the next section, I re-confirmed this by checking evaluation metrics of the model.
+
+#### On training set
+
+<img src="./confusion_matrix_train.png" style="height: 300px"/>
+
+#### On test set
+
+<img src="./confusion_matrix_test.png" style="height: 300px"/>
+
+### Model evaluation <a name = 'eval'>
+
+* The GBT Classifier performed exceptionally well, according to the metrics I set out above. On both training and test set, I managed to get the F-2 score to 0.916. The weighted precision and recall were both higher thatn 0.91 as well.
+
+|                    | Training                   | Test                 |
+| -----------        | -----------                | -----------          |
+| Size               | 7,141,851                  | 1,786,550            |
+| F-2 score          | 0.9166694881225047         | 0.9166360866758878   |
+| Weighted Precision | 0.9139830811708024         | 0.9139501467818495   |
+| Weighted Recall    | 0.9178316616138902         | 0.9177957662474188   |
+
+Out of curiosity, I wanted to evaluate the F-1 score, unweighted precision and unweighted recall. Although the F-1 score was still quite high, the unweighted precision and un-weighted recall score dropped.
+
+|                       | Training                   | Test                 |
+| -----------           | -----------                | -----------          |
+| Size                  | 7,141,851                  | 1,786,550            |
+| F-1 score             | 0.9152723705182283         | 0.9244899814995238   |
+| Un-weighted Precision | 0.7442854434961735         | 0.7751304102636402   |
+| Un-weighted Recall    | 0.6423584762482926         | 0.6390793909101476   |
+
+### Feature Importance <a name = 'fe'>
+
+Finally, as the GBT classifier is tree-based, I was able to get a list of feature importance for my model thanks to SparkML without needing to rerun it to compute permutation importance. The list of features ordered by their "importance" in my classifier is displayed below.
+
+<img src="./feature_importance.png" style="height: 600px"/>
+
+Only some of the features I "engineered" were important features of the model. If I had more time, I would have re-ran the model with only these features to see if it does as well as the full feature set, but unfortunately I did not. This would be interesting to revisit in the future.
+
+
+# Conclusions <a name = 'conclusions'>
 
 ## Lessons learned <a name = 'lessons'>
 
 ### Big data DS: Domain expertise, goals, metrics <a name = 'lessons_ds'>
 
-* Knowing that I needed to an imbalanced classifier was child's play
+* Knowing that I needed to an imbalanced classifier was only the first step. Actually building it was the difficult task. 
 
-* Actually building it was hard
+* I think picking the F-2 score as my mesure of success early on was key to creating my model, because I was able to create hypotheses about existing features and new features that could add to the pipeline.
 
 ### Big data ML: Patience, cloud computing, pipeline <a name ='lessons_ml'>
-* Cloud computing is time consuming - **plan accordingly**
 
-* Very difficult to do adhoc adjustments and calculations with a big dataset even with cloud computing - **plan accordingly**
+* Cloud computing is time consuming - on some occasions it took me more than 40 minutes to create and ssh into my cluster.
 
-* Extremely important to have a working script on a smaller dataset before trying anything "big data" **plan accordingly**
+* It was very difficult to do adhoc adjustments and calculations with a big dataset even with cloud computing, so I needed to plan things out ahead of time.
 
-* Better yet, have a working pipeline **plan accordingly** (more on this later)
+* Extremely important to have a working script on a smaller dataset before trying anything "big data".
 
 ## Things I would do differently <a name = 'diff'>
 
@@ -178,7 +255,7 @@ Looking back, here are things I would have done differently:
             2) EDA.py
             3) ML.py
    
-    * Then, I would read these functions into 2  separate Jupyter Notebooks: small.ipynb to run & display results using the smaller partition of the data & refine the 3 py scripts; big.ipynb for one final run.
+    * Afterwards, I would read these functions into 2  separate Jupyter Notebooks: small.ipynb to run & display results using the smaller partition of the data & refine the 3 py scripts; big.ipynb for one final run.
 
 * Done additional data pre-processing, such as scaling and/ or normalizing the continuous variables. This was not necessarily for the particular model I chose because Gradient Boosted Trees are tree-based and therefor does not require feature scaling, but if I wanted to trained more than 1 type of classifier, I should keep this in the back of my head.
 
